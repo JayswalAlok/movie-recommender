@@ -1,8 +1,6 @@
 import pickle
 import streamlit as st
 import requests
-import zipfile
-import os
 
 # Add developer credit at the top
 st.markdown(
@@ -21,43 +19,19 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ========== ZIP FILE EXTRACTION LOGIC ========== #
-def extract_zip_if_needed(zip_filename, output_filename):
-    """Extract zip file if output file doesn't exist"""
-    if not os.path.exists(output_filename) and os.path.exists(zip_filename):
-        try:
-            with zipfile.ZipFile(zip_filename, 'r') as zip_ref:
-                zip_ref.extractall('.')
-            st.success(f"Successfully extracted {output_filename} from {zip_filename}")
-        except Exception as e:
-            st.error(f"Failed to extract {zip_filename}: {str(e)}")
-            return False
-    return True
+# Load preprocessed data - corrected file names and modes
+movies = pickle.load(open('movie_list.pkl', 'rb'))  # Corrected function and mode
+similarity = pickle.load(open('similarity.pkl', 'rb'))  # Corrected function and mode
 
-# Check and extract both pickle files
-extract_zip_if_needed('movie_list.zip', 'movie_list.pkl')
-extract_zip_if_needed('similarity.zip', 'similarity.pkl')
+# OMDB API Configuration (use your actual key)
+OMDB_API_KEY = 'd6ac8dbc'  # Correct variable name
+OMDB_URL = 'http://www.omdbapi.com/'  # Correct URL
 
-# ========== MAIN APPLICATION CODE ========== #
-try:
-    # Load preprocessed data
-    movies = pickle.load(open('movie_list.pkl', 'rb'))
-    similarity = pickle.load(open('similarity.pkl', 'rb'))
-except FileNotFoundError as e:
-    st.error(f"Critical error: {str(e)}. Please ensure all data files are uploaded.")
-    st.stop()
-except Exception as e:
-    st.error(f"Error loading data files: {str(e)}")
-    st.stop()
 
-# OMDB API Configuration
-OMDB_API_KEY = 'd6ac8dbc'
-OMDB_URL = 'http://www.omdbapi.com/'
-
-def get_movie_details(title):
+def get_movie_details(title):  # Correct function definition
     try:
         params = {
-            'apikey': OMDB_API_KEY,
+            'apikey': OMDB_API_KEY,  # Correct parameter name
             't': title,
             'plot': 'short',
             'r': 'json'
@@ -81,62 +55,59 @@ def get_movie_details(title):
         st.error(f"Error fetching data: {str(e)}")
         return None
 
+
 # Streamlit UI
 st.title('🎬 Movie Recommender System')
 
-try:
-    selected_movie = st.selectbox(
-        'Select or type a movie title:',
-        movies['title'].values
-    )
+selected_movie = st.selectbox(
+    'Select or type a movie title:',
+    movies['title'].values  # This uses pandas
+)
 
-    if st.button('Get Recommendations'):
-        # Show selected movie details
-        st.subheader(f"🎥 You selected: {selected_movie}")
-        selected_details = get_movie_details(selected_movie)
+if st.button('Get Recommendations'):
+    # Show selected movie details
+    st.subheader(f"🎥 You selected: {selected_movie}")
+    selected_details = get_movie_details(selected_movie)
 
-        if selected_details:
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                if selected_details['Poster'] != 'N/A':
-                    st.image(selected_details['Poster'], width=200)
-                else:
-                    st.warning("Poster not available")
-            with col2:
-                st.write(f"**📅 Year:** {selected_details['Year']}")
-                st.write(f"**⏱️ Runtime:** {selected_details['Runtime']}")
-                st.write(f"**🎭 Genre:** {selected_details['Genre']}")
-                st.write(f"**🎬 Director:** {selected_details['Director']}")
-                st.write(f"**⭐ IMDb Rating:** {selected_details['imdbRating']}")
-                st.write(f"**📖 Plot:** {selected_details['Plot']}")
-        else:
-            st.warning("Couldn't fetch details for selected movie")
-
-        # Get recommendations
-        st.subheader("🍿 Top 5 Recommendations")
-        idx = movies[movies['title'] == selected_movie].index[0]
-        sim_scores = sorted(enumerate(similarity[idx]), key=lambda x: x[1], reverse=True)[1:6]
-
-        for i, (index, score) in enumerate(sim_scores, 1):
-            movie_title = movies.iloc[index].title
-            details = get_movie_details(movie_title)
-
-            st.markdown(f"### {i}. {movie_title}")
-            if details:
-                cols = st.columns([1, 3])
-                with cols[0]:
-                    if details['Poster'] != 'N/A':
-                        st.image(details['Poster'], width=150)
-                    else:
-                        st.write("No poster available")
-                with cols[1]:
-                    st.write(f"**Year:** {details['Year']}")
-                    st.write(f"**Rating:** ⭐ {details['imdbRating']}")
-                    st.write(f"**Genre:** {details['Genre']}")
-                    st.write(f"**Plot:** {details['Plot'][:200]}...")
+    if selected_details:
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            if selected_details['Poster'] != 'N/A':
+                st.image(selected_details['Poster'], width=200)
             else:
-                st.warning("Details not available")
-            st.write("---")
+                st.warning("Poster not available")
+        with col2:
+            st.write(f"**📅 Year:** {selected_details['Year']}")
+            st.write(f"**⏱️ Runtime:** {selected_details['Runtime']}")
+            st.write(f"**🎭 Genre:** {selected_details['Genre']}")
+            st.write(f"**🎬 Director:** {selected_details['Director']}")
+            st.write(f"**⭐ IMDb Rating:** {selected_details['imdbRating']}")
+            st.write(f"**📖 Plot:** {selected_details['Plot']}")
+    else:
+        st.warning("Couldn't fetch details for selected movie")
 
-except Exception as e:
-    st.error(f"Application error: {str(e)}")
+    # Get recommendations
+    st.subheader("🍿 Top 5 Recommendations")
+    idx = movies[movies['title'] == selected_movie].index[0]  # Uses pandas
+    sim_scores = sorted(enumerate(similarity[idx]), key=lambda x: x[1], reverse=True)[1:6]
+
+    for i, (index, score) in enumerate(sim_scores, 1):
+        movie_title = movies.iloc[index].title  # Uses pandas
+        details = get_movie_details(movie_title)
+
+        st.markdown(f"### {i}. {movie_title}")
+        if details:
+            cols = st.columns([1, 3])
+            with cols[0]:
+                if details['Poster'] != 'N/A':
+                    st.image(details['Poster'], width=150)
+                else:
+                    st.write("No poster available")
+            with cols[1]:
+                st.write(f"**Year:** {details['Year']}")
+                st.write(f"**Rating:** ⭐ {details['imdbRating']}")
+                st.write(f"**Genre:** {details['Genre']}")
+                st.write(f"**Plot:** {details['Plot'][:200]}...")
+        else:
+            st.warning("Details not available")
+        st.write("---")
